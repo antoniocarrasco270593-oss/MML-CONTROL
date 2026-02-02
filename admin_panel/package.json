@@ -1,0 +1,25 @@
+{
+    "name": "fichaje-admin",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "leaflet": "^1.9.4",
+        "react-leaflet": "^4.2.1",
+        "axios": "^1.6.5",
+        "tailwindcss": "^3.4.1"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^4.2.1",
+        "vite": "^5.0.12",
+        "autoprefixer": "^10.4.17",
+        "postcss": "^8.4.33"
+    }
+}
