@@ -5,7 +5,8 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
 // Use Environment Variable for Cloud, or fallback to local network for Dev
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+// FORZAMOS LA URL DE INTELIGENCIA (RENDER)
+const API_URL = 'https://mml-control-backend.onrender.com';
 
 function App() {
     const [token, setToken] = useState(localStorage.getItem('token'));
