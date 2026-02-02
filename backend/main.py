@@ -10,6 +10,32 @@ models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="MML-CONTROL API")
 
+# --- AUTO-CREATE ADMIN ON STARTUP (For Render Ephemeral FS) ---
+@app.on_event("startup")
+def startup_event():
+    db = database.SessionLocal()
+    try:
+        # Check if admin exists
+        admin = db.query(models.User).filter(models.User.email == "admin@fichaje.com").first()
+        if not admin:
+            # Create Admin
+            hashed_pw = security.get_password_hash("admin123")
+            admin = models.User(
+                email="admin@fichaje.com",
+                full_name="Admin Antonio",
+                hashed_password=hashed_pw,
+                role="admin",
+                is_active=True,
+                worker_number=999
+            )
+            db.add(admin)
+            db.commit()
+            print(">>> MML-SYSTEM: Admin user auto-created (admin@fichaje.com)")
+    except Exception as e:
+        print(f">>> MML-SYSTEM: Error creating admin: {e}")
+    finally:
+        db.close()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
