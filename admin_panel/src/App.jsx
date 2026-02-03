@@ -47,6 +47,18 @@ function App() {
                         icon="🕒"
                         label="Historial"
                     />
+                    <NavButton
+                        active={view === 'alerts'}
+                        onClick={() => setView('alerts')}
+                        icon="🚨"
+                        label="Alertas"
+                    />
+                    <NavButton
+                        active={view === 'reports'}
+                        onClick={() => setView('reports')}
+                        icon="📊"
+                        label="Informes"
+                    />
                 </nav>
 
                 <div className="mb-8 p-4 bg-black/20 rounded-xl border border-white/5">
@@ -75,6 +87,8 @@ function App() {
                     {view === 'map' && <LiveMap setWorkers={setWorkers} token={token} />}
                     {view === 'workers' && <WorkersManagement token={token} />}
                     {view === 'history' && <ShiftsHistory token={token} />}
+                    {view === 'alerts' && <AlertsView token={token} />}
+                    {view === 'reports' && <ReportsView token={token} />}
                 </div>
             </div>
         </div>
@@ -181,6 +195,7 @@ function Login({ setToken }) {
 
 function LiveMap({ setWorkers, token }) {
     const [markers, setMarkers] = useState([]);
+    const [mapCenter, setMapCenter] = useState([42.5987, -5.5671]); // León, España
 
     useEffect(() => {
         const fetch = async () => {
@@ -190,6 +205,13 @@ function LiveMap({ setWorkers, token }) {
                 });
                 setMarkers(res.data);
                 setWorkers(res.data);
+
+                // Dynamic map centering: if workers active, center on them
+                if (res.data.length > 0) {
+                    const avgLat = res.data.reduce((sum, m) => sum + m.lat, 0) / res.data.length;
+                    const avgLng = res.data.reduce((sum, m) => sum + m.lng, 0) / res.data.length;
+                    setMapCenter([avgLat, avgLng]);
+                }
             } catch (e) {
                 console.error(e);
             }
@@ -200,15 +222,36 @@ function LiveMap({ setWorkers, token }) {
         return () => clearInterval(interval);
     }, [token]);
 
+    // Vehicle icons
+    const vehicleIcons = {
+        car: '🚗',
+        motorcycle: '🏍️',
+        scooter: '🛴'
+    };
 
-    // Function to create a numbered icon dynamically
-    const createNumberedIcon = (number) => {
+    // Function to create a vehicle-based numbered icon
+    const createVehicleIcon = (vehicleType, number) => {
+        const emoji = vehicleIcons[vehicleType] || vehicleIcons.car;
         return L.divIcon({
-            className: 'custom-div-icon', // Leaflet requires a class, but we use internal HTML
-            html: `<div class="numbered-marker">${number}</div>`,
-            iconSize: [50, 50], // Larger circle
-            iconAnchor: [25, 25], // Center point
-            popupAnchor: [0, -25]
+            className: 'custom-vehicle-icon',
+            html: `
+                <div style="
+                    background: #00ffa3; 
+                    border-radius: 50%; 
+                    padding: 8px; 
+                    color: black; 
+                    font-weight: bold; 
+                    text-align: center; 
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    border: 2px solid #000;
+                ">
+                    <div style="font-size: 20px;">${emoji}</div>
+                    <div style="font-size: 12px;">#${number}</div>
+                </div>
+            `,
+            iconSize: [60, 70],
+            iconAnchor: [30, 35],
+            popupAnchor: [0, -35]
         });
     };
 
@@ -217,17 +260,22 @@ function LiveMap({ setWorkers, token }) {
             <div className="absolute top-4 right-4 z-[400] bg-black/80 backdrop-blur text-[#00ffa3] px-4 py-2 rounded-lg border border-[#00ffa3]/30 font-bold text-xs tracking-widest shadow-lg">
                 VISTA SATELITAL ACTIVA
             </div>
-            <MapContainer center={[40.4168, -3.7038]} zoom={14} style={{ height: "100%", width: "100%" }}>
+            <MapContainer center={mapCenter} zoom={14} style={{ height: "100%", width: "100%" }} key={mapCenter.join(',')}>
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                 />
                 {markers.map((m, i) => (
-                    <Marker key={i} position={[m.lat, m.lng]} icon={createNumberedIcon(m.worker_number || '?')}>
+                    <Marker
+                        key={i}
+                        position={[m.lat, m.lng]}
+                        icon={createVehicleIcon(m.vehicle_type || 'car', m.worker_number || '?')}
+                    >
                         <Popup className="custom-popup">
                             <div className="text-center bg-gray-900 text-white p-2 rounded">
                                 <span className="text-lg font-bold block text-[#00ffa3]">{m.user}</span>
-                                <span className="text-gray-400 text-xs">{new Date(m.last_update).toLocaleTimeString()}</span>
+                                <span className="text-gray-400 text-xs">#{m.worker_number} | {vehicleIcons[m.vehicle_type || 'car']}</span>
+                                <span className="text-gray-400 text-xs block">{new Date(m.last_update).toLocaleTimeString()}</span>
                             </div>
                         </Popup>
                     </Marker>
@@ -239,7 +287,7 @@ function LiveMap({ setWorkers, token }) {
 
 function WorkersManagement({ token }) {
     const [workers, setWorkers] = useState([]);
-    const [form, setForm] = useState({ email: '', password: '', full_name: '', worker_number: '' });
+    const [form, setForm] = useState({ email: '', password: '', full_name: '', worker_number: '', vehicle_type: 'car' });
     const [msg, setMsg] = useState('');
 
     const fetchWorkers = async () => {
@@ -265,11 +313,31 @@ function WorkersManagement({ token }) {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setMsg("Worker created successfully!");
-            setForm({ email: '', password: '', full_name: '', worker_number: '' });
-            fetchWorkers(); // Refresh list
+            setForm({ email: '', password: '', full_name: '', worker_number: '', vehicle_type: 'car' });
+            fetchWorkers();
         } catch (err) {
             setMsg("Error creating worker: " + (err.response?.data?.detail || err.message));
         }
+    };
+
+    const handleDelete = async (workerId, workerName) => {
+        if (window.confirm(`¿Estás seguro de eliminar a ${workerName}?`)) {
+            try {
+                await axios.delete(`${API_URL}/admin/workers/${workerId}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setMsg(`Worker ${workerName} deleted successfully!`);
+                fetchWorkers();
+            } catch (err) {
+                setMsg("Error deleting worker: " + (err.response?.data?.detail || err.message));
+            }
+        }
+    };
+
+    const vehicleIcons = {
+        car: '🚗',
+        motorcycle: '🏍️',
+        scooter: '🛴'
     };
 
     return (
@@ -285,6 +353,15 @@ function WorkersManagement({ token }) {
                     <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="number" placeholder="Worker Number (#)" value={form.worker_number} onChange={e => setForm({ ...form, worker_number: e.target.value })} required />
                     <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
                     <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="password" placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+                    <select
+                        className="border border-gray-300 p-3 rounded text-gray-900 font-medium col-span-2"
+                        value={form.vehicle_type}
+                        onChange={e => setForm({ ...form, vehicle_type: e.target.value })}
+                    >
+                        <option value="car">🚗 Coche</option>
+                        <option value="motorcycle">🏍️ Moto</option>
+                        <option value="scooter">🛴 Patinete</option>
+                    </select>
                     <div className="col-span-2">
                         <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700 transition w-full">Create Worker</button>
                     </div>
@@ -299,8 +376,10 @@ function WorkersManagement({ token }) {
                             <th className="p-4 border-b text-gray-900 font-bold">#</th>
                             <th className="p-4 border-b text-gray-900 font-bold">Name</th>
                             <th className="p-4 border-b text-gray-900 font-bold">Email</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Vehículo</th>
                             <th className="p-4 border-b text-gray-900 font-bold">Role</th>
                             <th className="p-4 border-b text-gray-900 font-bold">Status</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -309,6 +388,7 @@ function WorkersManagement({ token }) {
                                 <td className="p-4 border-b font-bold text-gray-600">#{w.worker_number}</td>
                                 <td className="p-4 border-b font-medium text-gray-900">{w.full_name}</td>
                                 <td className="p-4 border-b text-gray-700">{w.email}</td>
+                                <td className="p-4 border-b text-2xl">{vehicleIcons[w.vehicle_type || 'car']}</td>
                                 <td className="p-4 border-b">
                                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full uppercase">{w.role}</span>
                                 </td>
@@ -316,6 +396,16 @@ function WorkersManagement({ token }) {
                                     <span className={`px-2 py-1 rounded-full text-xs ${w.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {w.is_active ? 'Active' : 'Inactive'}
                                     </span>
+                                </td>
+                                <td className="p-4 border-b">
+                                    {w.role !== 'admin' && (
+                                        <button
+                                            onClick={() => handleDelete(w.id, w.full_name)}
+                                            className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition text-sm font-bold"
+                                        >
+                                            🗑️ Eliminar
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -494,6 +584,228 @@ function ShiftsHistory({ token }) {
                 </table>
                 {filteredShifts.length === 0 && <div className="p-8 text-center text-gray-600 font-medium">No se encontraron jornadas que coincidan con tu búsqueda.</div>}
             </div>
+        </div>
+    );
+}
+
+// Alerts View - Show open shifts warnings
+function AlertsView({ token }) {
+    const [openShifts, setOpenShifts] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchOpenShifts();
+        const interval = setInterval(fetchOpenShifts, 30000); // Refresh every 30s
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchOpenShifts = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/admin/alerts/open_shifts`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setOpenShifts(res.data);
+            setLoading(false);
+        } catch (e) {
+            console.error("Error fetching alerts", e);
+            setLoading(false);
+        }
+    };
+
+    const handleCloseShift = async (shiftId) => {
+        if (window.confirm("¿Cerrar esta jornada manualmente?")) {
+            try {
+                // Close shift manually by updating it
+                await axios.post(`${API_URL}/shifts/end`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                fetchOpenShifts();
+            } catch (e) {
+                console.error("Error closing shift", e);
+            }
+        }
+    };
+
+    return (
+        <div className="p-8">
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold text-gray-900">🚨 Alertas de Jornadas</h2>
+                {openShifts.length > 0 && (
+                    <span className="bg-red-500 text-white px-4 py-2 rounded-full font-bold text-sm">
+                        {openShifts.length} Alerta{openShifts.length > 1 ? 's' : ''}
+                    </span>
+                )}
+            </div>
+
+            {loading ? (
+                <div className="text-center py-12 text-gray-500">Cargando...</div>
+            ) : openShifts.length === 0 ? (
+                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-8 text-center">
+                    <div className="text-6xl mb-4">✅</div>
+                    <h3 className="text-xl font-bold text-green-800 mb-2">¡Todo en orden!</h3>
+                    <p className="text-green-700">No hay jornadas abiertas con más de 12 horas.</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {openShifts.map((shift) => (
+                        <div key={shift.id} className="bg-red-50 border-2 border-red-300 rounded-lg p-6 flex items-center justify-between">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-2xl">⚠️</span>
+                                    <h3 className="text-lg font-bold text-red-900">{shift.worker_name}</h3>
+                                    <span className="text-sm text-gray-600">#{shift.worker_number}</span>
+                                </div>
+                                <div className="text-sm text-red-700">
+                                    <strong>Inicio:</strong> {new Date(shift.start_time).toLocaleString('es-ES')}
+                                </div>
+                                <div className="text-sm font-bold text-red-900 mt-1">
+                                    ⏰ Abierta desde hace {shift.hours_open.toFixed(1)} horas
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleCloseShift(shift.id)}
+                                className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition"
+                            >
+                                Cerrar Manualmente
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Reports View - Hours summary and PDF export
+function ReportsView({ token }) {
+    const [summary, setSummary] = useState([]);
+    const [filters, setFilters] = useState({
+        worker_id: '',
+        start_date: '',
+        end_date: ''
+    });
+    const [workers, setWorkers] = useState([]);
+
+    useEffect(() => {
+        fetchWorkers();
+    }, []);
+
+    const fetchWorkers = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/admin/workers`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setWorkers(res.data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const fetchSummary = async () => {
+        try {
+            const params = {};
+            if (filters.worker_id) params.worker_id = filters.worker_id;
+            if (filters.start_date) params.start_date = filters.start_date;
+            if (filters.end_date) params.end_date = filters.end_date;
+
+            const res = await axios.get(`${API_URL}/admin/reports/hours_summary`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params
+            });
+            setSummary(res.data);
+        } catch (e) {
+            console.error("Error fetching summary", e);
+        }
+    };
+
+    const exportPDF = () => {
+        window.print();
+    };
+
+    return (
+        <div className="p-8">
+            <h2 className="text-3xl font-bold mb-6 text-gray-900">📊 Informes de Horas</h2>
+
+            {/* Filters */}
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h3 className="text-lg font-bold mb-4 text-gray-900">Filtros</h3>
+                <div className="grid grid-cols-3 gap-4">
+                    <select
+                        className="border border-gray-300 p-3 rounded text-gray-900"
+                        value={filters.worker_id}
+                        onChange={(e) => setFilters({ ...filters, worker_id: e.target.value })}
+                    >
+                        <option value="">Todos los trabajadores</option>
+                        {workers.map(w => (
+                            <option key={w.id} value={w.id}>#{w.worker_number} - {w.full_name}</option>
+                        ))}
+                    </select>
+                    <input
+                        type="date"
+                        className="border border-gray-300 p-3 rounded text-gray-900"
+                        value={filters.start_date}
+                        onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
+                        placeholder="Fecha inicio"
+                    />
+                    <input
+                        type="date"
+                        className="border border-gray-300 p-3 rounded text-gray-900"
+                        value={filters.end_date}
+                        onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
+                        placeholder="Fecha fin"
+                    />
+                </div>
+                <div className="mt-4 flex gap-4">
+                    <button
+                        onClick={fetchSummary}
+                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition flex-1"
+                    >
+                        🔍 Generar Informe
+                    </button>
+                    {summary.length > 0 && (
+                        <button
+                            onClick={exportPDF}
+                            className="bg-[#00ffa3] text-black px-6 py-3 rounded-lg font-bold hover:bg-[#00e692] transition"
+                        >
+                            📄 Exportar PDF
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Summary Table */}
+            {summary.length > 0 && (
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-200">
+                            <tr>
+                                <th className="p-4 border-b text-gray-900 font-bold">#</th>
+                                <th className="p-4 border-b text-gray-900 font-bold">Trabajador</th>
+                                <th className="p-4 border-b text-gray-900 font-bold">Jornadas</th>
+                                <th className="p-4 border-b text-gray-900 font-bold">Horas Totales</th>
+                                <th className="p-4 border-b text-gray-900 font-bold">Promedio/Jornada</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {summary.map((s, i) => (
+                                <tr key={i} className="hover:bg-gray-50">
+                                    <td className="p-4 border-b font-bold text-gray-600">#{s.worker_number}</td>
+                                    <td className="p-4 border-b font-medium text-gray-900">{s.worker_name}</td>
+                                    <td className="p-4 border-b text-gray-900">{s.shift_count}</td>
+                                    <td className="p-4 border-b text-gray-900 font-bold">{s.total_hours.toFixed(2)} hrs</td>
+                                    <td className="p-4 border-b text-gray-700">{(s.total_hours / s.shift_count).toFixed(2)} hrs</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {summary.length === 0 && (
+                <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-8 text-center">
+                    <p className="text-gray-600">Selecciona filtros y haz clic en "Generar Informe"</p>
+                </div>
+            )}
         </div>
     );
 }
