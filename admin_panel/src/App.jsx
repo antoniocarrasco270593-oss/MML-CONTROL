@@ -278,13 +278,13 @@ function WorkersManagement({ token }) {
 
             {/* Create Form */}
             <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                <h3 className="text-xl font-bold mb-4">Add New Worker</h3>
+                <h3 className="text-xl font-bold mb-4 text-gray-900">Add New Worker</h3>
                 {msg && <div className={`p-4 mb-4 rounded ${msg.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{msg}</div>}
                 <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-                    <input className="border p-2 rounded" placeholder="Full Name" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} required />
-                    <input className="border p-2 rounded" type="number" placeholder="Worker Number (#)" value={form.worker_number} onChange={e => setForm({ ...form, worker_number: e.target.value })} required />
-                    <input className="border p-2 rounded" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-                    <input className="border p-2 rounded" type="password" placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+                    <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" placeholder="Full Name" value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} required />
+                    <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="number" placeholder="Worker Number (#)" value={form.worker_number} onChange={e => setForm({ ...form, worker_number: e.target.value })} required />
+                    <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
+                    <input className="border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500" type="password" placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
                     <div className="col-span-2">
                         <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded font-bold hover:bg-blue-700 transition w-full">Create Worker</button>
                     </div>
@@ -296,19 +296,19 @@ function WorkersManagement({ token }) {
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-gray-200">
                         <tr>
-                            <th className="p-4 border-b">#</th>
-                            <th className="p-4 border-b">Name</th>
-                            <th className="p-4 border-b">Email</th>
-                            <th className="p-4 border-b">Role</th>
-                            <th className="p-4 border-b">Status</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">#</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Name</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Email</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Role</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {workers.map((w) => (
                             <tr key={w.id} className="hover:bg-gray-50">
                                 <td className="p-4 border-b font-bold text-gray-600">#{w.worker_number}</td>
-                                <td className="p-4 border-b font-medium">{w.full_name}</td>
-                                <td className="p-4 border-b text-gray-500">{w.email}</td>
+                                <td className="p-4 border-b font-medium text-gray-900">{w.full_name}</td>
+                                <td className="p-4 border-b text-gray-700">{w.email}</td>
                                 <td className="p-4 border-b">
                                     <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full uppercase">{w.role}</span>
                                 </td>
@@ -327,8 +327,11 @@ function WorkersManagement({ token }) {
     );
 }
 
+
 function ShiftsHistory({ token }) {
     const [shifts, setShifts] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
 
     useEffect(() => {
         const fetchShifts = async () => {
@@ -346,22 +349,126 @@ function ShiftsHistory({ token }) {
         fetchShifts();
     }, [token]);
 
+    // Filter shifts based on search and date
+    const filteredShifts = shifts.filter(s => {
+        const matchesSearch = s.worker_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.worker_number.toString().includes(searchTerm);
+        const matchesDate = !dateFilter || new Date(s.start_time).toLocaleDateString('es-ES') === new Date(dateFilter).toLocaleDateString('es-ES');
+        return matchesSearch && matchesDate;
+    });
+
+    // Export to PDF (using browser print)
+    const handleExportPDF = () => {
+        const printWindow = window.open('', '_blank');
+        const tableHTML = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Historial de Jornadas - MML CONTROL</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    h1 { color: #00ffa3; text-align: center; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                    th { background-color: #00ffa3; color: black; font-weight: bold; }
+                    tr:nth-child(even) { background-color: #f2f2f2; }
+                    .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <h1>📊 HISTORIAL DE JORNADAS</h1>
+                <p><strong>Fecha de exportación:</strong> ${new Date().toLocaleString('es-ES')}</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Trabajador</th>
+                            <th>Inicio</th>
+                            <th>Fin</th>
+                            <th>Duración</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredShifts.map(s => {
+            const start = new Date(s.start_time);
+            const end = s.end_time ? new Date(s.end_time) : null;
+            const duration = end ? ((end - start) / 1000 / 60 / 60).toFixed(2) + ' hrs' : '-';
+            return `
+                                <tr>
+                                    <td><strong>${s.worker_name}</strong><br><small>#${s.worker_number}</small></td>
+                                    <td>${start.toLocaleString('es-ES')}</td>
+                                    <td>${end ? end.toLocaleString('es-ES') : '-'}</td>
+                                    <td>${duration}</td>
+                                    <td>${s.status.toUpperCase()}</td>
+                                </tr>
+                            `;
+        }).join('')}
+                    </tbody>
+                </table>
+                <div class="footer">
+                    <p>MML-CONTROL © ${new Date().getFullYear()} | Sistema de Control de Jornadas</p>
+                </div>
+            </body>
+            </html>
+        `;
+        printWindow.document.write(tableHTML);
+        printWindow.document.close();
+        setTimeout(() => printWindow.print(), 500);
+    };
+
     return (
         <div className="p-8">
-            <h2 className="text-3xl font-bold mb-6 text-gray-800">Shift History</h2>
+            <h2 className="text-3xl font-bold mb-6 text-gray-900">Shift History</h2>
+
+            {/* Search and Filter Section */}
+            <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="col-span-2">
+                        <label className="block text-sm font-bold text-gray-900 mb-2">🔍 Buscar por Trabajador o Número</label>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Nombre o número de trabajador..."
+                            className="w-full border border-gray-300 p-3 rounded text-gray-900 font-medium placeholder-gray-500"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-900 mb-2">📅 Filtrar por Fecha</label>
+                        <input
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="w-full border border-gray-300 p-3 rounded text-gray-900 font-medium"
+                        />
+                    </div>
+                </div>
+                <div className="mt-4 flex justify-between items-center">
+                    <p className="text-sm text-gray-700">
+                        <strong>Mostrando {filteredShifts.length}</strong> de {shifts.length} jornadas
+                    </p>
+                    <button
+                        onClick={handleExportPDF}
+                        className="bg-[#00ffa3] text-black px-6 py-3 rounded-lg font-bold hover:bg-[#00e692] transition shadow-lg flex items-center gap-2"
+                    >
+                        📄 Exportar PDF
+                    </button>
+                </div>
+            </div>
+
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-gray-200">
                         <tr>
-                            <th className="p-4 border-b">Worker</th>
-                            <th className="p-4 border-b">Start Time</th>
-                            <th className="p-4 border-b">End Time</th>
-                            <th className="p-4 border-b">Duration</th>
-                            <th className="p-4 border-b">Status</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Worker</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Start Time</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">End Time</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Duration</th>
+                            <th className="p-4 border-b text-gray-900 font-bold">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {shifts.map((s) => {
+                        {filteredShifts.map((s) => {
                             const start = new Date(s.start_time);
                             const end = s.end_time ? new Date(s.end_time) : null;
                             const duration = end ? ((end - start) / 1000 / 60 / 60).toFixed(2) + ' hrs' : '-';
@@ -369,12 +476,12 @@ function ShiftsHistory({ token }) {
                             return (
                                 <tr key={s.id} className="hover:bg-gray-50">
                                     <td className="p-4 border-b">
-                                        <div className="font-bold">{s.worker_name}</div>
-                                        <div className="text-xs text-gray-500">#{s.worker_number}</div>
+                                        <div className="font-bold text-gray-900">{s.worker_name}</div>
+                                        <div className="text-xs text-gray-600">#{s.worker_number}</div>
                                     </td>
-                                    <td className="p-4 border-b">{start.toLocaleString()}</td>
-                                    <td className="p-4 border-b">{end ? end.toLocaleString() : '-'}</td>
-                                    <td className="p-4 border-b">{duration}</td>
+                                    <td className="p-4 border-b text-gray-900">{start.toLocaleString('es-ES')}</td>
+                                    <td className="p-4 border-b text-gray-900">{end ? end.toLocaleString('es-ES') : '-'}</td>
+                                    <td className="p-4 border-b text-gray-900 font-medium">{duration}</td>
                                     <td className="p-4 border-b">
                                         <span className={`px-2 py-1 rounded-full text-xs uppercase ${s.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                             {s.status}
@@ -385,10 +492,11 @@ function ShiftsHistory({ token }) {
                         })}
                     </tbody>
                 </table>
-                {shifts.length === 0 && <div className="p-8 text-center text-gray-500">No history found.</div>}
+                {filteredShifts.length === 0 && <div className="p-8 text-center text-gray-600 font-medium">No se encontraron jornadas que coincidan con tu búsqueda.</div>}
             </div>
         </div>
     );
 }
 
 export default App;
+
