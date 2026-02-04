@@ -429,4 +429,3 @@ def get_monthly_shifts(year: int, month: int, db: Session = Depends(get_db), cur
             "status": s.status
         })
     return results
-
